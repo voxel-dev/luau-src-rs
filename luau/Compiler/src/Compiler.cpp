@@ -3878,6 +3878,7 @@ std::string compile(const std::string& source, const CompileOptions& options, co
            return op * 227;
         }
     } encoder_obj;
+    
     encoder = &encoder_obj;
 
     Allocator allocator;
