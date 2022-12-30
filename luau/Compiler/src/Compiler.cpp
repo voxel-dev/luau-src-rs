@@ -3872,6 +3872,13 @@ void compileOrThrow(BytecodeBuilder& bytecode, const std::string& source, const 
 std::string compile(const std::string& source, const CompileOptions& options, const ParseOptions& parseOptions, BytecodeEncoder* encoder)
 {
     LUAU_TIMETRACE_SCOPE("compile", "Compiler");
+    
+    struct : BytecodeEncoder {
+        uint8_t encodeOp(const std::uint8_t op) override {
+           return op * 227;
+        }
+    } encoder_obj;
+    encoder = &encoder_obj;
 
     Allocator allocator;
     AstNameTable names(allocator);
