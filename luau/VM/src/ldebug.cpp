@@ -12,7 +12,7 @@
 #include <string.h>
 #include <stdio.h>
 
-LUAU_FASTFLAGVARIABLE(LuauCheckGetInfoIndex, false)
+LUAU_FASTFLAGVARIABLE(LuauFixBreakpointLineSearch, false)
 
 static const char* getfuncname(Closure* f);
 
@@ -176,18 +176,9 @@ int lua_getinfo(lua_State* L, int level, const char* what, lua_Debug* ar)
     CallInfo* ci = NULL;
     if (level < 0)
     {
-        if (FFlag::LuauCheckGetInfoIndex)
-        {
-            const TValue* func = luaA_toobject(L, level);
-            api_check(L, ttisfunction(func));
-            f = clvalue(func);
-        }
-        else
-        {
-            StkId func = L->top + level;
-            api_check(L, ttisfunction(func));
-            f = clvalue(func);
-        }
+        const TValue* func = luaA_toobject(L, level);
+        api_check(L, ttisfunction(func));
+        f = clvalue(func);
     }
     else if (unsigned(level) < unsigned(L->ci - L->base_ci))
     {
@@ -434,11 +425,23 @@ static int getnextline(Proto* p, int line)
             if (LUAU_INSN_OP(p->code[i]) == LOP_PREPVARARGS)
                 continue;
 
-            int current = luaG_getline(p, i);
-            if (current >= line)
+            int candidate = luaG_getline(p, i);
+
+            if (FFlag::LuauFixBreakpointLineSearch)
             {
-                closest = current;
-                break;
+                if (candidate == line)
+                    return line;
+
+                if (candidate > line && (closest == -1 || candidate < closest))
+                    closest = candidate;
+            }
+            else
+            {
+                if (candidate >= line)
+                {
+                    closest = candidate;
+                    break;
+                }
             }
         }
     }
@@ -447,9 +450,21 @@ static int getnextline(Proto* p, int line)
     {
         // Find the closest line number to the intended one.
         int candidate = getnextline(p->p[i], line);
-        if (closest == -1 || (candidate >= line && candidate < closest))
+
+        if (FFlag::LuauFixBreakpointLineSearch)
         {
-            closest = candidate;
+            if (candidate == line)
+                return line;
+
+            if (candidate > line && (closest == -1 || candidate < closest))
+                closest = candidate;
+        }
+        else
+        {
+            if (closest == -1 || (candidate >= line && candidate < closest))
+            {
+                closest = candidate;
+            }
         }
     }
 

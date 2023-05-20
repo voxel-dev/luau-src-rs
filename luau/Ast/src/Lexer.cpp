@@ -640,8 +640,7 @@ Lexeme Lexer::readInterpolatedStringSection(Position start, Lexeme::Type formatT
             }
 
             consume();
-            Lexeme lexemeOutput(Location(start, position()), Lexeme::InterpStringBegin, &buffer[startOffset], offset - startOffset - 1);
-            return lexemeOutput;
+            return Lexeme(Location(start, position()), formatType, &buffer[startOffset], offset - startOffset - 1);
         }
 
         default:

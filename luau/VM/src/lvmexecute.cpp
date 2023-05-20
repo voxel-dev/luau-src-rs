@@ -145,14 +145,15 @@ LUAU_NOINLINE void luau_callhook(lua_State* L, lua_Hook hook, void* userdata)
         L->base = L->ci->base;
     }
 
+    // note: the pc expectations of the hook are matching the general "pc points to next instruction"
+    // however, for the hook to be able to continue execution from the same point, this is called with savedpc at the *current* instruction
+    // this needs to be called before luaD_checkstack in case it fails to reallocate stack
+    if (L->ci->savedpc)
+        L->ci->savedpc++;
+
     luaD_checkstack(L, LUA_MINSTACK); // ensure minimum stack size
     L->ci->top = L->top + LUA_MINSTACK;
     LUAU_ASSERT(L->ci->top <= L->stack_last);
-
-    // note: the pc expectations of the hook are matching the general "pc points to next instruction"
-    // however, for the hook to be able to continue execution from the same point, this is called with savedpc at the *current* instruction
-    if (L->ci->savedpc)
-        L->ci->savedpc++;
 
     Closure* cl = clvalue(L->ci->func);
 
@@ -209,7 +210,7 @@ static void luau_execute(lua_State* L)
 #if LUA_CUSTOM_EXECUTION
     Proto* p = clvalue(L->ci->func)->l.p;
 
-    if (p->execdata)
+    if (p->execdata && !SingleStep)
     {
         if (L->global->ecb.enter(L, p) == 0)
             return;
@@ -912,7 +913,9 @@ reentry:
                 // slow-path: not a function call
                 if (LUAU_UNLIKELY(!ttisfunction(ra)))
                 {
-                    VM_PROTECT(luaV_tryfuncTM(L, ra));
+                    VM_PROTECT_PC(); // luaV_tryfuncTM may fail
+
+                    luaV_tryfuncTM(L, ra);
                     argtop++; // __call adds an extra self
                 }
 
@@ -949,9 +952,9 @@ reentry:
                     L->top = p->is_vararg ? argi : ci->top;
 
 #if LUA_CUSTOM_EXECUTION
-                    if (p->execdata)
+                    if (LUAU_UNLIKELY(p->execdata && !SingleStep))
                     {
-                        LUAU_ASSERT(L->global->ecb.enter);
+                        ci->savedpc = p->code;
 
                         if (L->global->ecb.enter(L, p) == 1)
                             goto reentry;
@@ -1047,10 +1050,8 @@ reentry:
                 Proto* nextproto = nextcl->l.p;
 
 #if LUA_CUSTOM_EXECUTION
-                if (nextproto->execdata)
+                if (LUAU_UNLIKELY(nextproto->execdata && !SingleStep))
                 {
-                    LUAU_ASSERT(L->global->ecb.enter);
-
                     if (L->global->ecb.enter(L, nextproto) == 1)
                         goto reentry;
                     else

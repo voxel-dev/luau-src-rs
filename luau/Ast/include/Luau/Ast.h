@@ -8,6 +8,7 @@
 #include <string>
 
 #include <string.h>
+#include <stdint.h>
 
 namespace Luau
 {
@@ -251,7 +252,6 @@ enum class ConstantNumberParseResult
     Malformed,
     BinOverflow,
     HexOverflow,
-    DoublePrefix,
 };
 
 class AstExprConstantNumber : public AstExpr
@@ -842,14 +842,16 @@ class AstTypeReference : public AstType
 public:
     LUAU_RTTI(AstTypeReference)
 
-    AstTypeReference(const Location& location, std::optional<AstName> prefix, AstName name, bool hasParameterList = false,
-        const AstArray<AstTypeOrPack>& parameters = {});
+    AstTypeReference(const Location& location, std::optional<AstName> prefix, AstName name, std::optional<Location> prefixLocation,
+        const Location& nameLocation, bool hasParameterList = false, const AstArray<AstTypeOrPack>& parameters = {});
 
     void visit(AstVisitor* visitor) override;
 
     bool hasParameterList;
     std::optional<AstName> prefix;
+    std::optional<Location> prefixLocation;
     AstName name;
+    Location nameLocation;
     AstArray<AstTypeOrPack> parameters;
 };
 
